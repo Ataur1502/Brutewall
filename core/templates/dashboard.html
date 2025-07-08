@@ -1,0 +1,183 @@
+{% extends "base.html" %} {% block title %}Dashboard{% endblock %} {% block content %}
+
+<h2 class="subtitle">IP Attempt Logs</h2>
+
+<table class="table is-striped is-fullwidth">
+    <thead>
+        <tr>
+            <th>IP</th>
+            <th>Attempts</th>
+            <th>Last Attempt</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in data %}
+        <tr>
+            <td>{{ row.ip_address }}</td>
+            <td>{{ row.attempts }}</td>
+            <td>{{ row.last_attempt }}</td>
+            <td>
+                {% if row.blocked %}
+                <span class="tag is-danger">Blocked</span><br>
+                <small>Unblocks in: <span id="timer-{{ forloop.counter }}"></span></small>
+                <span id="time-left-{{ forloop.counter }}" style="display: none;">
+                        {{ row.blocked_until|date:"U" }}
+                    </span> {% else %}
+                <span class="tag is-success">Active</span> {% endif %}
+            </td>
+            <td>
+                {% if row.blocked %}
+                <a href="{% url 'reset_ip' row.ip_address %}" class="button is-small is-warning">Reset</a> {% else %}
+                <span class="has-text-grey-light">—</span> {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="has-text-right mb-4">
+    <a class="button is-info" href="{% url 'export_csv' %}">⬇️ Export CSV</a>
+</div>
+
+<!-- Hidden values for JavaScript -->
+<p id="1" style="visibility: hidden;">{{ blocked_count }}</p>
+<p id="2" style="visibility: hidden;">{{ active_count }}</p>
+<p id="3" style="visibility: hidden;">{{ heatmap_data }}</p>
+<p id="4" style="visibility: hidden;">{{ heatmap_labels}}</p>
+
+<!-- Donut Chart -->
+<h2 class="subtitle mt-5">Visualization</h2>
+<div style="max-width: 300px; margin: auto;">
+    <canvas id="statusChart"></canvas>
+</div>
+
+
+
+
+<script>
+    // Donut chart
+    const blockedCount = parseInt(document.getElementById('1').textContent);
+    const activeCount = parseInt(document.getElementById('2').textContent);
+
+    const ctx = document.getElementById('statusChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Blocked', 'Active'],
+            datasets: [{
+                data: [blockedCount, activeCount],
+                backgroundColor: ['#f14668', '#48c774'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Line chart
+    const heatmapDataR = document.getElementById('3').textContent;
+    const yLabelsR = document.getElementById('4').textContent;
+
+    const heatmapData = JSON.parse(heatmapDataR);
+    const yLabels = JSON.parse(yLabelsR);
+    console.log(heatmapData, yLabels);
+
+    const ctxHeatmap = document.getElementById('heatmapChart').getContext('2d');
+    new Chart(ctxHeatmap, {
+        type: 'matrix',
+        data: {
+            datasets: [{
+                label: 'Login Attempts',
+                data: heatmapData,
+                backgroundColor(context) {
+                    const value = context.dataset.data[context.dataIndex].v;
+                    const alpha = Math.min(1, value / 5);
+                    return `rgba(244, 38, 104, ${alpha})`; // red scale
+                },
+                width: ({
+                    chart
+                }) => chart.chartArea.width / 24 - 1,
+                height: ({
+                    chart
+                }) => chart.chartArea.height / yLabels.length - 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: () => '',
+                        label: ctx => {
+                            const d = yLabels[ctx.raw.y];
+                            return `Date: ${d}, Hour: ${ctx.raw.x}, Attempts: ${ctx.raw.v}`;
+                        }
+                    }
+                },
+                legend: {
+                    display: false
+                },
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    position: 'bottom',
+                    ticks: {
+                        stepSize: 1,
+                        callback: v => `${v}:00`
+                    },
+                    title: {
+                        display: true,
+                        text: 'Hour of Day'
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    ticks: {
+                        stepSize: 1,
+                        callback: v => yLabels[v]
+                    },
+                    title: {
+                        display: true,
+                        text: 'Date'
+                    }
+                }
+            }
+        }
+    });
+
+    // Countdown for blocked IPs
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('[id^=time-left-]').forEach(function(el) {
+            const id = el.id.split('-')[2];
+            const endTime = parseInt(el.textContent);
+            const span = document.getElementById('timer-' + id);
+
+            function updateCountdown() {
+                const secondsLeft = endTime - Math.floor(Date.now() / 1000);
+                if (secondsLeft <= 0) {
+                    span.innerText = 'Unblocked';
+                    span.classList.remove('has-text-danger');
+                    span.classList.add('has-text-success');
+                    return;
+                }
+                const mins = Math.floor(secondsLeft / 60);
+                const secs = secondsLeft % 60;
+                span.innerText = `${mins}m ${secs}s`;
+                setTimeout(updateCountdown, 1000);
+            }
+
+            updateCountdown();
+        });
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %} {% block title %}Login Simulation{% endblock %} {% block content %} {% if messages %}
+<div style="position: fixed; top: 1rem; right: 1rem; z-index: 1000;">
+    {% for message in messages %}
+    <div class="notification 
+        {% if message.tags == 'error' %}is-danger
+        {% elif message.tags == 'success' %}is-success
+        {% elif message.tags == 'warning' %}is-warning
+        {% else %}is-info{% endif %}">
+        <button class="delete" onclick="this.parentElement.style.display='none'"></button> {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="box" style="max-width: 400px; margin: auto; margin-top: 5rem;">
+    <h2 class="subtitle">Simulated Login</h2>
+    <form method="post">{% csrf_token %}
+        <div class="field">
+            <label class="label">Username</label>
+            <div class="control"><input class="input" type="text" name="username" required></div>
+        </div>
+        <div class="field">
+            <label class="label">Password</label>
+            <div class="control"><input class="input" type="password" name="password" required></div>
+        </div>
+        <div class="field is-grouped is-grouped-centered">
+            <div class="control"><button class="button is-danger">Login</button></div>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
